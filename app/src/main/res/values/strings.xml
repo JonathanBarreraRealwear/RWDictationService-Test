@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">RW-DictationService</string>
+    <string name="service_description">RW Dictation Service</string>
+</resources>
