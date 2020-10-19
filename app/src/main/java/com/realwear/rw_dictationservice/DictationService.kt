@@ -14,36 +14,17 @@ import java.util.concurrent.Executors
 import java.util.concurrent.Future
 
 class DictationService : RecognitionService() {
-    private lateinit var mSpeechRecognizer: SpeechRecognizer
-    private lateinit var mCallback: Callback
-    private val s_executorService = Executors.newCachedThreadPool()
+    private val sExecutorService = Executors.newCachedThreadPool()
 
     override fun onStartListening(intent: Intent, callback: Callback) {
-        Log.d(TAG, "jonathan start listening")
-
-        mCallback = callback
-        val extras = intent.extras ?: Bundle()
-        val dictationType = extras.get(EXTRA_DICTATION_TYPE)
-        mCallback.readyForSpeech(extras)
-
-        when (dictationType) {
-            ASYNC_DICTATION -> startAsyncDictation()
-            CONTINUOUS_DICTATION -> startContinuousDictation()
-            else -> startAsyncDictation()
-        }
-    }
-
-    /**
-     * Method to start Microsoft dictation service.
-     */
-    private fun startAsyncDictation() {
         val speechConfig =
             SpeechConfig.fromSubscription(SpeechSubscriptionKey, SpeechRegion)
         val audioInput = AudioConfig.fromDefaultMicrophoneInput()
-        mSpeechRecognizer = SpeechRecognizer(speechConfig, audioInput)
-        val task: Future<SpeechRecognitionResult> = mSpeechRecognizer.recognizeOnceAsync()
+        val speechRecognizer = SpeechRecognizer(speechConfig, audioInput)
+        val task: Future<SpeechRecognitionResult> = speechRecognizer.recognizeOnceAsync()
 
-        mSpeechRecognizer.recognizing.addEventListener { _: Any?, speechRecognitionResultEventArgs: SpeechRecognitionEventArgs ->
+        speechRecognizer.recognizing.addEventListener {
+                _: Any?, speechRecognitionResultEventArgs: SpeechRecognitionEventArgs ->
             val text = speechRecognitionResultEventArgs.result.text
             val bundle = Bundle()
             val arrayList = ArrayList<String>()
@@ -52,13 +33,13 @@ class DictationService : RecognitionService() {
                 android.speech.SpeechRecognizer.RESULTS_RECOGNITION,
                 arrayList
             )
-            mCallback.partialResults(bundle)
+            callback.partialResults(bundle)
         }
 
         setOnTaskCompletedListener(task,
             object : OnTaskCompletedListener<SpeechRecognitionResult> {
                 override fun onCompleted(taskResult: SpeechRecognitionResult) {
-                    mCallback.endOfSpeech()
+                    callback.endOfSpeech()
 
                     val text = taskResult.text
                     val bundle = Bundle()
@@ -68,56 +49,13 @@ class DictationService : RecognitionService() {
                         android.speech.SpeechRecognizer.RESULTS_RECOGNITION,
                         arrayList
                     )
-                    mCallback.results(bundle)
+                    callback.results(bundle)
                 }
             })
     }
 
-    private fun startContinuousDictation() {
-        val speechConfig =
-            SpeechConfig.fromSubscription(SpeechSubscriptionKey, SpeechRegion)
-        val audioInput = AudioConfig.fromDefaultMicrophoneInput()
-        mSpeechRecognizer = SpeechRecognizer(speechConfig, audioInput)
-        val content = java.util.ArrayList<String>()
-        mSpeechRecognizer.recognizing.addEventListener { _, speechRecognitionEventArgs ->
-            val text: String = speechRecognitionEventArgs.result.text
-            content.add(text)
-
-            val bundle = Bundle()
-            bundle.putStringArrayList(
-                android.speech.SpeechRecognizer.RESULTS_RECOGNITION,
-                content
-            )
-            mCallback.partialResults(bundle)
-
-            content.removeAt(content.size - 1)
-        }
-
-        mSpeechRecognizer.recognized.addEventListener { _, speechRecognitionEventArgs ->
-            val text: String = speechRecognitionEventArgs.result.text
-            content.add(text)
-
-            val bundle = Bundle()
-            bundle.putStringArrayList(
-                android.speech.SpeechRecognizer.RESULTS_RECOGNITION,
-                content
-            )
-            mCallback.results(bundle)
-        }
-
-        mSpeechRecognizer.startContinuousRecognitionAsync()
-    }
-
     override fun onStopListening(p0: Callback?) {
         Log.d(TAG, "onStopListening called.")
-    }
-
-    override fun onDestroy() {
-        Log.d(TAG, "onDestroy called.")
-        mSpeechRecognizer.stopContinuousRecognitionAsync()
-        mSpeechRecognizer.close()
-
-        super.onDestroy()
     }
 
     override fun onCancel(p0: Callback?) {
@@ -128,7 +66,7 @@ class DictationService : RecognitionService() {
         task: Future<T>,
         listener: OnTaskCompletedListener<T>
     ) {
-        s_executorService.submit(
+        sExecutorService.submit(
             Callable<Any?> {
                 val result = task.get()
                 listener.onCompleted(result)
@@ -144,8 +82,5 @@ class DictationService : RecognitionService() {
         private val TAG = DictationService::class.java.simpleName
         private const val SpeechSubscriptionKey = "226314cc4670432e87d9f80f805bffea"
         private const val SpeechRegion = "westus2"
-        private const val EXTRA_DICTATION_TYPE = "extra_dictation_type"
-        private const val ASYNC_DICTATION = 0
-        private const val CONTINUOUS_DICTATION = 1
     }
 }
