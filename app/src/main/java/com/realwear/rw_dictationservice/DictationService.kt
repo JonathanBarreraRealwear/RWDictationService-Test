@@ -30,13 +30,7 @@ class DictationService : RecognitionService() {
         speechRecognizer.recognizing.addEventListener {
                 _: Any?, speechRecognitionResultEventArgs: SpeechRecognitionEventArgs ->
             val text = speechRecognitionResultEventArgs.result.text
-            val bundle = Bundle()
-            val arrayList = ArrayList<String>()
-            arrayList.add(text)
-            bundle.putStringArrayList(
-                android.speech.SpeechRecognizer.RESULTS_RECOGNITION,
-                arrayList
-            )
+            val bundle = bundleResults(text)
             callback.partialResults(bundle)
         }
 
@@ -46,16 +40,25 @@ class DictationService : RecognitionService() {
                     callback.endOfSpeech()
 
                     val text = taskResult.text
-                    val bundle = Bundle()
-                    val arrayList = ArrayList<String>()
-                    arrayList.add(text)
-                    bundle.putStringArrayList(
-                        android.speech.SpeechRecognizer.RESULTS_RECOGNITION,
-                        arrayList
-                    )
+                    val bundle = bundleResults(text)
                     callback.results(bundle)
                 }
             })
+    }
+
+    /**
+     * Method for bundling dictation results [text].
+     * @return Bundle with text results in string array list.
+     */
+    private fun bundleResults(text: String): Bundle {
+        val bundle = Bundle()
+        val arrayList = ArrayList<String>()
+        arrayList.add(text)
+        bundle.putStringArrayList(
+            android.speech.SpeechRecognizer.RESULTS_RECOGNITION,
+            arrayList
+        )
+        return bundle
     }
 
     override fun onStopListening(p0: Callback?) {
