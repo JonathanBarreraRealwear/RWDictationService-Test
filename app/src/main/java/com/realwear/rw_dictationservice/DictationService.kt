@@ -13,6 +13,9 @@ import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
 
+/**
+ * Custom subclass of RecognitionService to handle dictation.
+ */
 class DictationService : RecognitionService() {
     private val sExecutorService = Executors.newCachedThreadPool()
 
@@ -62,6 +65,9 @@ class DictationService : RecognitionService() {
         Log.d(TAG, "onCancel called.")
     }
 
+    /**
+     * Method to set an OnTaskCompletedListener on a Future task.
+     */
     private fun <T> setOnTaskCompletedListener(
         task: Future<T>,
         listener: OnTaskCompletedListener<T>
@@ -74,6 +80,9 @@ class DictationService : RecognitionService() {
             })
     }
 
+    /**
+     * A custom listener for task result.
+     */
     private interface OnTaskCompletedListener<T> {
         fun onCompleted(taskResult: T)
     }
