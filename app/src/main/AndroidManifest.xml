@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.realwear.rw_dictationservice">
 
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
@@ -17,7 +18,8 @@
             android:exported="true"
             android:description="@string/service_description"
             android:icon="@drawable/ic_launcher_background"
-            android:label="RW Dictation Service">
+            android:label="RW Dictation Service"
+            tools:ignore="ExportedService">
 
             <intent-filter>
                 <action android:name="android.speech.RecognitionService"/>
