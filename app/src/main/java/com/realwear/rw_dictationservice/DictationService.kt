@@ -6,52 +6,45 @@ import android.speech.RecognitionService
 import android.util.Log
 import com.microsoft.cognitiveservices.speech.SpeechConfig
 import com.microsoft.cognitiveservices.speech.SpeechRecognitionEventArgs
-import com.microsoft.cognitiveservices.speech.SpeechRecognitionResult
 import com.microsoft.cognitiveservices.speech.SpeechRecognizer
 import com.microsoft.cognitiveservices.speech.audio.AudioConfig
-import java.util.concurrent.Callable
-import java.util.concurrent.Executors
-import java.util.concurrent.Future
 
+/**
+ * Custom RecognitionService for Dictation.
+ */
 class DictationService : RecognitionService() {
-    private val sExecutorService = Executors.newCachedThreadPool()
-
     override fun onStartListening(intent: Intent, callback: Callback) {
         val speechConfig =
             SpeechConfig.fromSubscription(SpeechSubscriptionKey, SpeechRegion)
         val audioInput = AudioConfig.fromDefaultMicrophoneInput()
         val speechRecognizer = SpeechRecognizer(speechConfig, audioInput)
-        val task: Future<SpeechRecognitionResult> = speechRecognizer.recognizeOnceAsync()
 
         speechRecognizer.recognizing.addEventListener {
                 _: Any?, speechRecognitionResultEventArgs: SpeechRecognitionEventArgs ->
-            val text = speechRecognitionResultEventArgs.result.text
-            val bundle = Bundle()
-            val arrayList = ArrayList<String>()
-            arrayList.add(text)
-            bundle.putStringArrayList(
-                android.speech.SpeechRecognizer.RESULTS_RECOGNITION,
-                arrayList
-            )
-            callback.partialResults(bundle)
+            callback.partialResults(bundleResults(speechRecognitionResultEventArgs))
         }
 
-        setOnTaskCompletedListener(task,
-            object : OnTaskCompletedListener<SpeechRecognitionResult> {
-                override fun onCompleted(taskResult: SpeechRecognitionResult) {
-                    callback.endOfSpeech()
+        speechRecognizer.recognized.addEventListener {
+                _: Any?, speechRecognitionResultEventArgs: SpeechRecognitionEventArgs ->
+            callback.endOfSpeech()
+            callback.results(bundleResults(speechRecognitionResultEventArgs))
+        }
+    }
 
-                    val text = taskResult.text
-                    val bundle = Bundle()
-                    val arrayList = ArrayList<String>()
-                    arrayList.add(text)
-                    bundle.putStringArrayList(
-                        android.speech.SpeechRecognizer.RESULTS_RECOGNITION,
-                        arrayList
-                    )
-                    callback.results(bundle)
-                }
-            })
+    /**
+     * Method to bundle dictation results from speech recognizer.
+     * @return Bundle with string array list holding recognition results.
+     */
+    private fun bundleResults(speechRecognitionResultEventArgs: SpeechRecognitionEventArgs): Bundle {
+        val text = speechRecognitionResultEventArgs.result.text
+        val bundle = Bundle()
+        val arrayList = ArrayList<String>()
+        arrayList.add(text)
+        bundle.putStringArrayList(
+            android.speech.SpeechRecognizer.RESULTS_RECOGNITION,
+            arrayList
+        )
+        return bundle
     }
 
     override fun onStopListening(p0: Callback?) {
@@ -60,22 +53,6 @@ class DictationService : RecognitionService() {
 
     override fun onCancel(p0: Callback?) {
         Log.d(TAG, "onCancel called.")
-    }
-
-    private fun <T> setOnTaskCompletedListener(
-        task: Future<T>,
-        listener: OnTaskCompletedListener<T>
-    ) {
-        sExecutorService.submit(
-            Callable<Any?> {
-                val result = task.get()
-                listener.onCompleted(result)
-                null
-            })
-    }
-
-    private interface OnTaskCompletedListener<T> {
-        fun onCompleted(taskResult: T)
     }
 
     companion object {
