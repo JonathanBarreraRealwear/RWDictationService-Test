@@ -25,6 +25,7 @@ class DictationService : RecognitionService() {
         val audioInput = AudioConfig.fromDefaultMicrophoneInput()
         val speechRecognizer = SpeechRecognizer(speechConfig, audioInput)
         val task: Future<SpeechRecognitionResult> = speechRecognizer.recognizeOnceAsync()
+        callback.readyForSpeech(Bundle())
 
         speechRecognizer.recognizing.addEventListener {
                 _: Any?, speechRecognitionResultEventArgs: SpeechRecognitionEventArgs ->
