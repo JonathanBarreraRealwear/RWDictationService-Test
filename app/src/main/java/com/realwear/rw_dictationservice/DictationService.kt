@@ -4,14 +4,15 @@ import android.content.Intent
 import android.os.Bundle
 import android.speech.RecognitionService
 import android.util.Log
-import com.microsoft.cognitiveservices.speech.SpeechConfig
-import com.microsoft.cognitiveservices.speech.SpeechRecognitionEventArgs
-import com.microsoft.cognitiveservices.speech.SpeechRecognitionResult
-import com.microsoft.cognitiveservices.speech.SpeechRecognizer
+import com.microsoft.cognitiveservices.speech.ResultReason
 import com.microsoft.cognitiveservices.speech.audio.AudioConfig
+import com.microsoft.cognitiveservices.speech.translation.SpeechTranslationConfig
+import com.microsoft.cognitiveservices.speech.translation.TranslationRecognitionResult
+import com.microsoft.cognitiveservices.speech.translation.TranslationRecognizer
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
+
 
 /**
  * Custom subclass of RecognitionService to handle dictation.
@@ -20,30 +21,53 @@ class DictationService : RecognitionService() {
     private val sExecutorService = Executors.newCachedThreadPool()
 
     override fun onStartListening(intent: Intent, callback: Callback) {
-        val speechConfig =
-            SpeechConfig.fromSubscription(SpeechSubscriptionKey, SpeechRegion)
-        val audioInput = AudioConfig.fromDefaultMicrophoneInput()
-        val speechRecognizer = SpeechRecognizer(speechConfig, audioInput)
-        val task: Future<SpeechRecognitionResult> = speechRecognizer.recognizeOnceAsync()
-        callback.readyForSpeech(Bundle())
+        val translationConfig = SpeechTranslationConfig.fromSubscription(
+            SpeechSubscriptionKey, SpeechRegion
+        )
 
-        speechRecognizer.recognizing.addEventListener {
-                _: Any?, speechRecognitionResultEventArgs: SpeechRecognitionEventArgs ->
-            val text = speechRecognitionResultEventArgs.result.text
-            val bundle = bundleResults(text)
-            callback.partialResults(bundle)
+        val fromLanguage = "en-US"
+        val toLanguages = arrayOf("de")
+        translationConfig.speechRecognitionLanguage = fromLanguage
+        for (language in toLanguages) {
+            translationConfig.addTargetLanguage(language)
         }
+        val audioInput = AudioConfig.fromDefaultMicrophoneInput()
+        val translationRecognizer = TranslationRecognizer(translationConfig, audioInput)
+        val task: Future<TranslationRecognitionResult> = translationRecognizer.recognizeOnceAsync()
 
-        setOnTaskCompletedListener(task,
-            object : OnTaskCompletedListener<SpeechRecognitionResult> {
-                override fun onCompleted(taskResult: SpeechRecognitionResult) {
-                    callback.endOfSpeech()
-
-                    val text = taskResult.text
-                    val bundle = bundleResults(text)
-                    callback.results(bundle)
+        setOnTaskCompletedListener(task, object: OnTaskCompletedListener<TranslationRecognitionResult> {
+            override fun onCompleted(taskResult: TranslationRecognitionResult) {
+                callback.endOfSpeech()
+                if (taskResult.reason == ResultReason.TranslatedSpeech) {
+                    callback.results(bundleResults(taskResult.translations.entries.elementAt(0).value))
                 }
-            })
+            }
+        })
+
+//        val speechConfig =
+//            SpeechConfig.fromSubscription(SpeechSubscriptionKey, SpeechRegion)
+//        val audioInput = AudioConfig.fromDefaultMicrophoneInput()
+//        val speechRecognizer = SpeechRecognizer(speechConfig, audioInput)
+//        val task: Future<SpeechRecognitionResult> = speechRecognizer.recognizeOnceAsync()
+//        callback.readyForSpeech(Bundle())
+//
+//        speechRecognizer.recognizing.addEventListener {
+//                _: Any?, speechRecognitionResultEventArgs: SpeechRecognitionEventArgs ->
+//            val text = speechRecognitionResultEventArgs.result.text
+//            val bundle = bundleResults(text)
+//            callback.partialResults(bundle)
+//        }
+//
+//        setOnTaskCompletedListener(task,
+//            object : OnTaskCompletedListener<SpeechRecognitionResult> {
+//                override fun onCompleted(taskResult: SpeechRecognitionResult) {
+//                    callback.endOfSpeech()
+//
+//                    val text = taskResult.text
+//                    val bundle = bundleResults(text)
+//                    callback.results(bundle)
+//                }
+//            })
     }
 
     /**
