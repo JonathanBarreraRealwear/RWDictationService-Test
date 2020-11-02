@@ -4,70 +4,66 @@ import android.content.Intent
 import android.os.Bundle
 import android.speech.RecognitionService
 import android.util.Log
-import com.microsoft.cognitiveservices.speech.ResultReason
+import com.azure.identity.ClientSecretCredentialBuilder
+import com.azure.security.keyvault.secrets.SecretClientBuilder
+import com.microsoft.cognitiveservices.speech.SpeechConfig
+import com.microsoft.cognitiveservices.speech.SpeechRecognitionEventArgs
+import com.microsoft.cognitiveservices.speech.SpeechRecognitionResult
+import com.microsoft.cognitiveservices.speech.SpeechRecognizer
 import com.microsoft.cognitiveservices.speech.audio.AudioConfig
-import com.microsoft.cognitiveservices.speech.translation.SpeechTranslationConfig
-import com.microsoft.cognitiveservices.speech.translation.TranslationRecognitionResult
-import com.microsoft.cognitiveservices.speech.translation.TranslationRecognizer
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
-
 
 /**
  * Custom subclass of RecognitionService to handle dictation.
  */
 class DictationService : RecognitionService() {
     private val sExecutorService = Executors.newCachedThreadPool()
+    private lateinit var subscriptionKey: String
+
+    override fun onCreate() {
+        super.onCreate()
+
+        Log.d(TAG, "jonathan on create")
+
+        val keyvaultUrl = "https://clouddictation-keyvault.vault.azure.net/"
+        val clientSecretCredential = ClientSecretCredentialBuilder()
+            .clientId("99ea6d24-d7f2-4e65-8cf1-6f6949d5aed1")
+            .tenantId("3fb8c4c4-8d65-442d-8093-6d8790fc6b85")
+            .clientSecret("jVf2~AZVCzoz-.1j_n5Lc_bJT89~sqkSAK")
+            .build()
+        val secretClient = SecretClientBuilder()
+            .vaultUrl(keyvaultUrl)
+            .credential(clientSecretCredential)
+            .buildClient()
+
+        subscriptionKey = secretClient.getSecret("DictationKey").value
+    }
 
     override fun onStartListening(intent: Intent, callback: Callback) {
-        val translationConfig = SpeechTranslationConfig.fromSubscription(
-            SpeechSubscriptionKey, SpeechRegion
-        )
-
-        val fromLanguage = "en-US"
-        val toLanguages = arrayOf("de")
-        translationConfig.speechRecognitionLanguage = fromLanguage
-        for (language in toLanguages) {
-            translationConfig.addTargetLanguage(language)
-        }
+        val speechConfig =
+            SpeechConfig.fromSubscription(subscriptionKey, SpeechRegion)
         val audioInput = AudioConfig.fromDefaultMicrophoneInput()
-        val translationRecognizer = TranslationRecognizer(translationConfig, audioInput)
-        val task: Future<TranslationRecognitionResult> = translationRecognizer.recognizeOnceAsync()
+        val speechRecognizer = SpeechRecognizer(speechConfig, audioInput)
+        val task: Future<SpeechRecognitionResult> = speechRecognizer.recognizeOnceAsync()
+        callback.readyForSpeech(Bundle())
 
-        setOnTaskCompletedListener(task, object: OnTaskCompletedListener<TranslationRecognitionResult> {
-            override fun onCompleted(taskResult: TranslationRecognitionResult) {
-                callback.endOfSpeech()
-                if (taskResult.reason == ResultReason.TranslatedSpeech) {
-                    callback.results(bundleResults(taskResult.translations.entries.elementAt(0).value))
+        speechRecognizer.recognizing.addEventListener { _: Any?, speechRecognitionResultEventArgs: SpeechRecognitionEventArgs ->
+            val text = speechRecognitionResultEventArgs.result.text
+            val bundle = bundleResults(text)
+            callback.partialResults(bundle)
+        }
+
+        setOnTaskCompletedListener(task,
+            object : OnTaskCompletedListener<SpeechRecognitionResult> {
+                override fun onCompleted(taskResult: SpeechRecognitionResult) {
+                    callback.endOfSpeech()
+                    val text = taskResult.text
+                    val bundle = bundleResults(text)
+                    callback.results(bundle)
                 }
-            }
-        })
-
-//        val speechConfig =
-//            SpeechConfig.fromSubscription(SpeechSubscriptionKey, SpeechRegion)
-//        val audioInput = AudioConfig.fromDefaultMicrophoneInput()
-//        val speechRecognizer = SpeechRecognizer(speechConfig, audioInput)
-//        val task: Future<SpeechRecognitionResult> = speechRecognizer.recognizeOnceAsync()
-//        callback.readyForSpeech(Bundle())
-//
-//        speechRecognizer.recognizing.addEventListener {
-//                _: Any?, speechRecognitionResultEventArgs: SpeechRecognitionEventArgs ->
-//            val text = speechRecognitionResultEventArgs.result.text
-//            val bundle = bundleResults(text)
-//            callback.partialResults(bundle)
-//        }
-//
-//        setOnTaskCompletedListener(task,
-//            object : OnTaskCompletedListener<SpeechRecognitionResult> {
-//                override fun onCompleted(taskResult: SpeechRecognitionResult) {
-//                    callback.endOfSpeech()
-//
-//                    val text = taskResult.text
-//                    val bundle = bundleResults(text)
-//                    callback.results(bundle)
-//                }
-//            })
+            })
     }
 
     /**
@@ -117,7 +113,6 @@ class DictationService : RecognitionService() {
 
     companion object {
         private val TAG = DictationService::class.java.simpleName
-        private const val SpeechSubscriptionKey = "226314cc4670432e87d9f80f805bffea"
         private const val SpeechRegion = "westus2"
     }
 }
